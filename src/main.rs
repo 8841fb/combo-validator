@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 use regex::Regex;
 
@@ -10,8 +9,8 @@ fn validate_email(email: &str) -> bool {
     email_regex.is_match(email)
 }
 
-fn process_file(file_name: &str, valid_emails: Arc<Mutex<Vec<String>>>) {
-    let file = File::open(file_name).unwrap();
+fn process_file(file_name: &str, valid_emails: Arc<Mutex<Vec<&str>>>) {
+    let file = File::open(file_name).expect("Failed to open file");
     let reader = BufReader::new(file);
 
     for line in reader.lines() {
@@ -21,18 +20,13 @@ fn process_file(file_name: &str, valid_emails: Arc<Mutex<Vec<String>>>) {
                 let email = parts[0];
                 let password = parts[1];
 
-                // if theres "	" in the password, remove it and everything after it
-                if let Some(index) = password.find("	") {
-                    let password = &password[..index];
-                }
+                let password: Vec<&str> = password.splitn(2, "	").collect();
+                let password = password[0];
 
-                if password.len() < 6 {
-                    continue;
-                }
-
-                if validate_email(email) {
-                    let valid_email = format!("{}:{}", email, password);
-                    valid_emails.lock().unwrap().push(valid_email);
+                if password.len() >= 6 && validate_email(email) {
+                    valid_emails.lock().unwrap().push(Box::leak(
+                        format!("{}:{}", email, password).into_boxed_str(),
+                    ));
                 }
             }
         }
@@ -42,30 +36,16 @@ fn process_file(file_name: &str, valid_emails: Arc<Mutex<Vec<String>>>) {
 fn main() {
     let file_name = std::env::args().nth(1).expect("Missing file name");
 
-    let valid_emails: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-    let mut threads = vec![];
-
-    for _ in 0..num_cpus::get() {
-        let file_name = file_name.clone();
-        let valid_emails = valid_emails.clone();
-
-        let thread = thread::spawn(move || {
-            process_file(&file_name, valid_emails);
-        });
-
-        threads.push(thread);
-    }
-
-    for thread in threads {
-        thread.join().unwrap();
-    }
+    let valid_emails: Arc<Mutex<Vec<&str>>> = Arc::new(Mutex::new(Vec::new()));
+    process_file(&file_name, valid_emails.clone());
 
     let valid_emails = valid_emails.lock().unwrap();
-    let mut output_file = File::create("valid_emails.txt").unwrap();
+    let mut output_file = File::create("valid.txt").expect("Failed to create output file");
 
-    for email in valid_emails.iter() {
-        writeln!(output_file, "{}", email).unwrap();
-    }
+    let emails_string = valid_emails.join("\n");
+    output_file
+        .write_all(emails_string.as_bytes())
+        .expect("Failed to write to output file");
 
     println!("done | {}", file_name);
 }

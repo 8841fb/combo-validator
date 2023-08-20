@@ -1,9 +1,9 @@
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::sync::{Arc, Mutex};
 
 use regex::Regex;
-use std::collections::HashSet;
 
 fn validate_email(email: &str) -> bool {
     let email_regex = Regex::new(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$").unwrap();
@@ -16,13 +16,8 @@ fn process_file(file_name: &str, valid_emails: Arc<Mutex<HashSet<String>>>) {
 
     for line in reader.lines() {
         if let Ok(line) = line {
-            let parts: Vec<&str> = line.splitn(2, ':').collect();
-            if parts.len() == 2 {
-                let email = parts[0];
-                let password = parts[1];
-
-                let password: Vec<&str> = password.splitn(2, "	").collect();
-                let password = password[0];
+            if let Some((email, password)) = line.split_once(':') {
+                let password = password.split_once('\t').map(|(p, _)| p).unwrap_or("");
 
                 if password.len() >= 6 && validate_email(email) {
                     valid_emails
@@ -41,14 +36,15 @@ fn main() {
     let valid_emails: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
     process_file(&file_name, valid_emails.clone());
 
-    let valid_emails = valid_emails.lock().unwrap();
     let mut output_file = File::create("valid.txt").expect("Failed to create output file");
 
-    let emails_string = valid_emails.iter().fold(String::new(), |mut acc, email| {
-        acc.push_str(email);
-        acc.push('\n');
-        acc
-    });
+    let valid_emails = valid_emails.lock().unwrap();
+    let emails_string = valid_emails
+        .iter()
+        .cloned()
+        .collect::<Vec<String>>()
+        .join("\n");
+
     output_file
         .write_all(emails_string.as_bytes())
         .expect("Failed to write to output file");

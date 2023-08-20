@@ -9,5 +9,8 @@ edition = "2021"
 regex = "1.9.3"
 
 [profile.release]
+strip = true
+opt-level = "z"
 lto = true
-opt-level = 3
+codegen-units = 1
+panic = "abort"

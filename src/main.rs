@@ -17,7 +17,7 @@ fn process_file(file_name: &str, valid_emails: Arc<Mutex<HashSet<String>>>) {
     for line in reader.lines() {
         if let Ok(line) = line {
             if let Some((email, password)) = line.split_once(':') {
-                let password = password.split_once('\t').map(|(p, _)| p).unwrap_or("");
+                let password = password.split_once('\t').map_or("", |(p, _)| p);
 
                 if password.len() >= 6 && validate_email(email) {
                     valid_emails

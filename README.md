@@ -26,5 +26,5 @@ cargo build --release # use as ./target/release/combo-validator <path/to/combo.t
 
 
 ### notes
-- you may need a decent pc to run this
+- you may need a decent pc to run this in a big combolist (500k+ lines)
 - the code is kinda a mess.
